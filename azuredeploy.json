@@ -1,0 +1,127 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "adminPassword": {
+            "type": "securestring",
+            "metadata": {
+                "description": "Password for all VMs"
+            }
+        },
+        "domainName": {
+            "type": "string",
+            "defaultValue": "victim.local"
+        }
+    },
+    "variables": {
+        "vnetName": "StormLab-VNet",
+        "subnetName": "Internal-Subnet",
+        "vmSize": "Standard_D2s_v3"
+    },
+    "resources": [
+        {
+            "type": "Microsoft.Network/virtualNetworks",
+            "apiVersion": "2021-02-01",
+            "name": "[variables('vnetName')]",
+            "location": "[resourceGroup().location]",
+            "properties": {
+                "addressSpace": {
+                    "addressPrefixes": ["192.168.0.0/16"]
+                },
+                "subnets": [
+                    {
+                        "name": "[variables('subnetName')]",
+                        "properties": {
+                            "addressPrefix": "192.168.1.0/24"
+                        }
+                    }
+                ]
+            }
+        },
+        {
+            "type": "Microsoft.Compute/virtualMachines",
+            "apiVersion": "2021-03-01",
+            "name": "LAB-DC01",
+            "location": "[resourceGroup().location]",
+            "dependsOn": [
+                "[resourceId('Microsoft.Network/virtualNetworks', variables('vnetName'))]"
+            ],
+            "properties": {
+                "hardwareProfile": {
+                    "vmSize": "[variables('vmSize')]"
+                },
+                "osProfile": {
+                    "computerName": "LAB-DC01",
+                    "adminUsername": "Administrator",
+                    "adminPassword": "[parameters('adminPassword')]"
+                },
+                "storageProfile": {
+                    "imageReference": {
+                        "publisher": "MicrosoftWindowsServer",
+                        "offer": "WindowsServer",
+                        "sku": "2022-Datacenter",
+                        "version": "latest"
+                },
+                "osDisk": {
+                    "createOption": "FromImage",
+                    "managedDisk": {
+                        "storageAccountType": "Premium_LRS"
+                    }
+                }
+            }
+        }
+    },
+    {
+        "type": "Microsoft.Compute/virtualMachines",
+        "apiVersion": "2021-03-01",
+        "name": "LAB-CONNECT01",
+        "location": "[resourceGroup().location]",
+        "dependsOn": ["[resourceId('Microsoft.Compute/virtualMachines', 'LAB-DC01')]"],
+        "properties": {
+            "hardwareProfile": {"vmSize": "[variables('vmSize')]"},
+            "osProfile": {
+                "computerName": "LAB-CONNECT01",
+                "adminUsername": "Administrator",
+                "adminPassword": "[parameters('adminPassword')]"
+            },
+            "storageProfile": {
+                "imageReference": {
+                    "publisher": "MicrosoftWindowsServer",
+                    "offer": "WindowsServer",
+                    "sku": "2022-Datacenter",
+                    "version": "latest"
+                }
+            }
+        }
+    },
+    {
+        "type": "Microsoft.Compute/virtualMachines",
+        "apiVersion": "2021-03-01",
+        "name": "LAB-ATTACKER01",
+        "location": "[resourceGroup().location]",
+        "dependsOn": ["[resourceId('Microsoft.Compute/virtualMachines', 'LAB-DC01')]"],
+        "properties": {
+            "hardwareProfile": {"vmSize": "Standard_D4s_v3"},
+            "osProfile": {
+                "computerName": "LAB-ATTACKER01",
+                "adminUsername": "Administrator",
+                "adminPassword": "[parameters('adminPassword')]"
+            },
+            "storageProfile": {
+                "imageReference": {
+                    "publisher": "MicrosoftWindowsDesktop",
+                    "offer": "Windows-11",
+                    "sku": "win11-22h2-pro",
+                    "version": "latest"
+                }
+            }
+        }
+    }
+    ],
+    "outputs": {
+        "dcPublicIP": {
+            "type": "string",
+            "value": "[reference(resourceId('Microsoft.Network/publicIPAddresses', 'LAB-DC01-IP')).ipAddress]"
+        }
+    }
+}
